@@ -1,0 +1,101 @@
+# Hyperparameters for Romanian Llama 3.1 8B Fine-Tuning
+
+# Model Configuration
+model:
+  name: "meta-llama/Llama-3.1-8B"
+  base_type: "llama3"  # For renderer selection
+  context_length: 8192  # Max tokens per example
+
+# LoRA Configuration
+# Using Low-Rank Adaptation for efficient fine-tuning
+lora:
+  rank: 8  # r: rank of update matrices (higher = more parameters)
+  alpha: 16  # alpha: scaling factor (commonly 2*rank)
+  dropout: 0.05  # Dropout probability for regularization
+  target_modules: "all_linear_layers"  # Apply LoRA to all linear layers
+  # Alternative: ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]
+
+# Training Configuration
+training:
+  # Learning rate and schedule
+  learning_rate: 1.0e-4  # Conservative starting point
+  warmup_steps: 100  # Gradual learning rate warmup
+  lr_scheduler: "cosine"  # Options: "constant", "linear", "cosine"
+
+  # Training steps
+  max_steps: 1000  # Total training steps (adjust based on dataset size)
+  eval_steps: 50  # Evaluate every N steps
+  save_steps: 100  # Save checkpoint every N steps
+  logging_steps: 10  # Log metrics every N steps
+
+  # Batch configuration
+  batch_size: 4  # Per-device batch size
+  gradient_accumulation_steps: 1  # Effective batch = batch_size * grad_accum
+  max_grad_norm: 1.0  # Gradient clipping threshold
+
+  # Data handling
+  max_seq_length: 2048  # Maximum sequence length for training
+  seed: 42  # Random seed for reproducibility
+
+# Optimizer Configuration
+optimizer:
+  type: "adamw"  # Adam with weight decay
+  weight_decay: 0.001  # L2 regularization
+  beta1: 0.9  # Adam beta1
+  beta2: 0.999  # Adam beta2
+  epsilon: 1.0e-8  # Adam epsilon for numerical stability
+
+# Loss Configuration
+loss:
+  type: "cross_entropy"  # Standard language modeling loss
+  ignore_index: -100  # Ignore padding tokens in loss calculation
+
+# Checkpoint Configuration
+checkpointing:
+  save_total_limit: 3  # Keep only last N checkpoints
+  save_strategy: "steps"  # Options: "steps", "epoch"
+  resume_from_checkpoint: null  # Path to checkpoint to resume from
+
+# Evaluation Configuration
+evaluation:
+  strategy: "steps"  # Options: "steps", "epoch", "no"
+  eval_accumulation_steps: 1  # Accumulate eval batches
+  per_device_eval_batch_size: 4  # Batch size for evaluation
+
+# Data Processing
+data:
+  train_file: "data/splits/train.jsonl"
+  validation_file: "data/splits/val.jsonl"
+  preprocessing_num_workers: 4  # Parallel data loading
+
+# Romanian-Specific Configuration
+romanian:
+  # Filter for Romanian language detection threshold
+  language_detection_threshold: 0.9  # Minimum confidence for Romanian
+
+  # Text cleaning options
+  remove_non_latin: true  # Remove non-Latin characters
+  normalize_whitespace: true  # Normalize spaces and newlines
+  min_length: 10  # Minimum characters per example
+  max_length: 4096  # Maximum characters per example
+
+# Experiment Tracking (optional)
+wandb:
+  enabled: false  # Set to true to enable Weights & Biases tracking
+  project: "romanian-llama-finetune"
+  entity: null  # Your W&B username/team
+  run_name: null  # Auto-generated if null
+  tags: ["romanian", "llama-3.1", "instruction-following"]
+
+# Quick Validation Configuration (for testing pipeline)
+quick_test:
+  enabled: false  # Set to true for quick validation run
+  max_steps: 50  # Limited steps for quick testing
+  num_examples: 100  # Limited examples for quick testing
+
+# Production Configuration (for full training)
+production:
+  enabled: false  # Set to true when ready for full training
+  max_steps: 5000  # Extended training
+  save_steps: 250  # Less frequent saves
+  eval_steps: 100  # Less frequent evaluation
