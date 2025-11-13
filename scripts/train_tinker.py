@@ -363,7 +363,25 @@ class RomanianLlamaTrainer:
                     "cross_entropy"
                 ).result()
 
-                total_loss += fwd_result.loss
+                # Extract loss from metrics (same as training loop)
+                if 'loss:sum' in fwd_result.metrics:
+                    batch_loss = fwd_result.metrics['loss:sum']
+                else:
+                    # Fallback: compute mean NLL from logprobs and weights
+                    logprobs = [x["logprobs"] for x in fwd_result.loss_fn_outputs]
+                    weights = [datum.loss_fn_inputs["weights"] for datum in batch]
+
+                    batch_total = 0.0
+                    batch_weight = 0.0
+                    for lp, w in zip(logprobs, weights):
+                        lp_tensor = lp.to_torch() if hasattr(lp, 'to_torch') else lp
+                        w_tensor = w.to_torch() if hasattr(w, 'to_torch') else w
+                        batch_total += -(lp_tensor * w_tensor).sum().item()
+                        batch_weight += w_tensor.sum().item()
+
+                    batch_loss = batch_total / max(batch_weight, 1.0)
+
+                total_loss += batch_loss
                 num_batches += 1
 
             except Exception as e:
