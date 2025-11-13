@@ -107,10 +107,10 @@ class RomanianModelEvaluator:
         logger.info(f"Setting up model: {model_name}")
 
         # Create training client (even for evaluation)
+        # Note: Tinker API uses 'rank' parameter
         self.training_client = self.client.create_lora_training_client(
             base_model=model_name,
-            lora_rank=8,
-            lora_alpha=16
+            rank=8
         )
 
         # Load checkpoint if specified

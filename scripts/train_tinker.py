@@ -97,10 +97,10 @@ class RomanianLlamaTrainer:
         logger.info(f"LoRA config: rank={lora_config['rank']}, alpha={lora_config['alpha']}")
 
         # Create LoRA training client
+        # Note: Tinker API uses 'rank' parameter (alpha is handled internally)
         self.training_client = self.client.create_lora_training_client(
             base_model=model_name,
-            lora_rank=lora_config['rank'],
-            lora_alpha=lora_config['alpha']
+            rank=lora_config['rank']
         )
 
         # Get tokenizer
@@ -143,11 +143,35 @@ class RomanianLlamaTrainer:
                     # Build supervised example with Tinker renderer
                     tokens, weights = self.renderer.build_supervised_example(messages)
 
-                    # Create Datum object
-                    # weights: 0 for context (user message), 1 for completion (assistant response)
+                    # Follow Tinker Cookbook pattern: datum_from_tokens_weights
+                    # input_tokens = tokens[:-1], target_tokens = tokens[1:], weights = weights[1:]
+                    input_tokens = tokens[:-1]
+                    target_tokens = tokens[1:]
+                    weights_shifted = weights[1:]
+
+                    # Create ModelInput from input tokens
+                    model_input = types.ModelInput.from_ints(input_tokens.tolist())
+
+                    # Create TensorData for both target_tokens and weights
+                    from tinker import TensorData
+                    target_tokens_data = TensorData(
+                        data=[int(x) for x in target_tokens.tolist()],
+                        dtype="int64",
+                        shape=list(target_tokens.shape)
+                    )
+                    weights_data = TensorData(
+                        data=weights_shifted.tolist(),
+                        dtype="float32",
+                        shape=list(weights_shifted.shape)
+                    )
+
+                    # Create Datum object with both target_tokens and weights
                     datum = types.Datum(
-                        model_input=tokens,
-                        loss_fn_inputs={'weights': weights}
+                        model_input=model_input,
+                        loss_fn_inputs={
+                            'target_tokens': target_tokens_data,
+                            'weights': weights_data
+                        }
                     )
 
                     processed_data.append(datum)
@@ -216,17 +240,35 @@ class RomanianLlamaTrainer:
                     "cross_entropy"
                 ).result()
 
-                # Extract loss
-                loss = fwd_result.loss
+                # Extract loss from metrics (Tinker provides loss:sum in metrics dict)
+                # Or compute from logprobs like Tinker Cookbook does
+                if 'loss:sum' in fwd_result.metrics:
+                    loss = fwd_result.metrics['loss:sum']
+                else:
+                    # Fallback: compute mean NLL from logprobs and weights
+                    logprobs = [x["logprobs"] for x in fwd_result.loss_fn_outputs]
+                    weights = [datum.loss_fn_inputs["weights"] for datum in batch]
+
+                    # Simple mean NLL computation
+                    total_loss = 0.0
+                    total_weight = 0.0
+                    for lp, w in zip(logprobs, weights):
+                        lp_tensor = lp.to_torch() if hasattr(lp, 'to_torch') else lp
+                        w_tensor = w.to_torch() if hasattr(w, 'to_torch') else w
+                        total_loss += -(lp_tensor * w_tensor).sum().item()
+                        total_weight += w_tensor.sum().item()
+
+                    loss = total_loss / max(total_weight, 1.0)
+
                 metrics['train_losses'].append(loss)
 
                 # Optimizer step
                 self.training_client.optim_step(
                     types.AdamParams(
                         learning_rate=learning_rate,
-                        weight_decay=optimizer_config.get('weight_decay', 0.001),
                         beta1=optimizer_config.get('beta1', 0.9),
-                        beta2=optimizer_config.get('beta2', 0.999)
+                        beta2=optimizer_config.get('beta2', 0.999),
+                        eps=optimizer_config.get('eps', 1e-8)
                     )
                 ).result()
 

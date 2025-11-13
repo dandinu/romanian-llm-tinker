@@ -34,11 +34,12 @@ class RomanianDatasetDownloader:
 
     AVAILABLE_SOURCES = {
         'wiki': {
-            'name': 'wikipedia',
+            'name': 'wikimedia/wikipedia',
             'config': '20231101.ro',
             'split': 'train',
             'description': 'Romanian Wikipedia - clean factual text',
-            'size_estimate': '~300MB'
+            'size_estimate': '~300MB',
+            'trust_remote_code': False
         },
         'oscar': {
             'name': 'oscar-corpus/OSCAR-2201',

@@ -1,0 +1,67 @@
+checkpointing:
+  resume_from_checkpoint: null
+  save_strategy: steps
+  save_total_limit: 3
+data:
+  preprocessing_num_workers: 4
+  train_file: data/splits/train.jsonl
+  validation_file: data/splits/val.jsonl
+evaluation:
+  eval_accumulation_steps: 1
+  per_device_eval_batch_size: 4
+  strategy: steps
+lora:
+  alpha: 16
+  dropout: 0.05
+  rank: 8
+  target_modules: all_linear_layers
+loss:
+  ignore_index: -100
+  type: cross_entropy
+model:
+  base_type: llama3
+  context_length: 8192
+  name: meta-llama/Llama-3.1-8B
+optimizer:
+  beta1: 0.9
+  beta2: 0.999
+  epsilon: 1.0e-08
+  type: adamw
+  weight_decay: 0.001
+production:
+  enabled: false
+  eval_steps: 100
+  max_steps: 5000
+  save_steps: 250
+quick_test:
+  enabled: false
+  max_steps: 50
+  num_examples: 100
+romanian:
+  language_detection_threshold: 0.9
+  max_length: 4096
+  min_length: 10
+  normalize_whitespace: true
+  remove_non_latin: true
+training:
+  batch_size: 4
+  eval_steps: 25
+  gradient_accumulation_steps: 1
+  learning_rate: 0.0001
+  logging_steps: 10
+  lr_scheduler: cosine
+  max_grad_norm: 1.0
+  max_seq_length: 2048
+  max_steps: 50
+  save_steps: 25
+  seed: 42
+  warmup_steps: 100
+wandb:
+  enabled: false
+  entity: null
+  project: romanian-llama-finetune
+  run_name: null
+  tags:
+  - romanian
+  - llama-3.1
+  - instruction-following
