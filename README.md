@@ -15,17 +15,22 @@ romanian-llm-tinker/
 │   ├── processed/        # JSONL formatted training data
 │   └── splits/           # Train/validation splits
 ├── scripts/
-│   ├── download_datasets.py   # Fetch Romanian datasets
-│   ├── prepare_data.py        # Data preprocessing & formatting
-│   ├── train_tinker.py        # Main training script
-│   └── evaluate.py            # Model evaluation
+│   ├── download_datasets.py    # Fetch Romanian datasets
+│   ├── prepare_data.py         # Data preprocessing & formatting
+│   ├── train_tinker.py         # Main training script
+│   ├── test_model.py           # Interactive model testing (no download needed)
+│   ├── download_checkpoint.py  # Download checkpoints from Tinker
+│   └── evaluate.py             # Model evaluation
 ├── configs/
-│   └── hyperparams.yaml       # Training hyperparameters
+│   └── hyperparams.yaml        # Training hyperparameters
+├── checkpoints/
+│   ├── checkpoint_step_*_metrics.json  # Training metrics per checkpoint
+│   └── final_metrics.json              # Final training metrics
 ├── notebooks/
-│   └── explore_data.ipynb     # Data exploration
-├── requirements.txt           # Python dependencies
-├── .env.example              # Environment variable template
-└── README.md                 # This file
+│   └── explore_data.ipynb      # Data exploration
+├── requirements.txt            # Python dependencies
+├── .env.example               # Environment variable template
+└── README.md                  # This file
 ```
 
 ## Prerequisites
@@ -120,14 +125,33 @@ python scripts/train_tinker.py \
 
 Training will run on Tinker's infrastructure. Monitor progress in the Tinker console.
 
-### Step 4: Evaluate Results
+**Important**: Save your session ID from the training logs! You'll need it for testing. Look for:
+```
+INFO - ServiceClient initialized for session a65fa1a6-00b9-5a7e-9abf-59f068b79982
+INFO - Creating TrainingClient for model_id='a65fa1a6-00b9-5a7e-9abf-59f068b79982:train:0'
+```
+
+### Step 4: Test Your Model
+
+After training completes, test your model directly (no download needed):
 
 ```bash
-python scripts/evaluate.py \
-    --checkpoint checkpoints/final \
-    --test-data data/splits/val.jsonl \
-    --output results.json
+# Interactive testing (recommended)
+python scripts/test_model.py \
+    --session-id YOUR_SESSION_ID \
+    --interactive
+
+# Test single prompt
+python scripts/test_model.py \
+    --session-id YOUR_SESSION_ID \
+    --prompt "Care este capitala României?"
+
+# Run predefined tests
+python scripts/test_model.py \
+    --session-id YOUR_SESSION_ID
 ```
+
+See the [Testing Your Model](#testing-your-model) section below for detailed testing options.
 
 ## Data Format
 
@@ -218,12 +242,147 @@ python scripts/download_datasets.py --source scrape --url https://romanian-forum
 python scripts/download_datasets.py --source translate --input alpaca.json --target ro
 ```
 
+## Testing Your Model
+
+After training completes, you can test your model in multiple ways. Your trained model weights live on Tinker's infrastructure, so no downloads are required!
+
+### Method 1: Interactive Testing (Recommended)
+
+The easiest way to test your model is with interactive mode:
+
+```bash
+python scripts/test_model.py \
+    --session-id YOUR_SESSION_ID \
+    --interactive
+```
+
+This opens an interactive prompt where you can:
+- Type Romanian prompts and get instant responses
+- Type `test` to run predefined tests
+- Type `quit` to exit
+
+**Example session:**
+```
+🇷🇴 Romanian Prompt: Care este capitala României?
+
+⏳ Generating response...
+
+🤖 Response:
+Capitala României este București, cel mai mare oraș din țară...
+```
+
+### Method 2: Single Prompt Testing
+
+Test with a specific prompt:
+
+```bash
+python scripts/test_model.py \
+    --session-id YOUR_SESSION_ID \
+    --prompt "Explică ce este inteligența artificială."
+```
+
+### Method 3: Predefined Test Suite
+
+Run a suite of 5 predefined Romanian prompts:
+
+```bash
+python scripts/test_model.py \
+    --session-id YOUR_SESSION_ID
+```
+
+This tests:
+- Factual questions (e.g., "Care este capitala României?")
+- Explanations (e.g., "Explică ce este inteligența artificială")
+- Creative writing (e.g., "Scrie o scurtă poezie despre primăvară")
+- List generation (e.g., "Care sunt cele mai mari orașe din România?")
+- Summarization tasks
+
+### Method 4: Compare with Base Model
+
+See how much your fine-tuning improved the model:
+
+```bash
+python scripts/test_model.py \
+    --session-id YOUR_SESSION_ID \
+    --compare
+```
+
+This runs the same prompts through both your fine-tuned model and the base Llama 3.1 8B, showing side-by-side comparisons.
+
+### Test Script Options
+
+```bash
+python scripts/test_model.py \
+    --session-id YOUR_SESSION_ID \       # Required: Your Tinker session ID
+    --checkpoint checkpoint_final \      # Checkpoint name (default: checkpoint_final)
+    --interactive \                      # Enable interactive mode
+    --prompt "Your prompt here" \        # Test single prompt
+    --compare \                          # Compare with base model
+    --max-tokens 256 \                   # Max tokens to generate (default: 256)
+    --model meta-llama/Llama-3.1-8B \   # Base model name
+    --rank 8                             # LoRA rank used in training
+```
+
+### Finding Your Session ID
+
+Your session ID is in the training logs. Look for lines like:
+```
+2025-11-13 15:53:44,963 - INFO - ServiceClient initialized for session a65fa1a6-00b9-5a7e-9abf-59f068b79982
+```
+
+Or check your training metrics file:
+```bash
+# View your training progress
+cat checkpoints/final_metrics.json | python -m json.tool | head -20
+```
+
+## Downloading Checkpoints (Optional)
+
+If you need to download checkpoint weights for local use or deployment:
+
+```bash
+python scripts/download_checkpoint.py \
+    --session-id YOUR_SESSION_ID \
+    --checkpoint checkpoint_final \
+    --output-dir checkpoints/downloads
+```
+
+**Note**: Tinker's checkpoint archiving can take several minutes. The script will automatically retry if the archive is still being created.
+
+### Download Options
+
+```bash
+# Download specific checkpoint
+python scripts/download_checkpoint.py \
+    --session-id YOUR_SESSION_ID \
+    --checkpoint checkpoint_step_900
+
+# Try downloading all available checkpoints
+python scripts/download_checkpoint.py \
+    --session-id YOUR_SESSION_ID \
+    --all
+```
+
+Downloaded checkpoints will be extracted to `checkpoints/downloads/`.
+
 ## Evaluation Metrics
 
-- **Perplexity**: Lower is better (measures prediction confidence)
-- **ROUGE Score**: Overlap with reference responses
-- **Manual Review**: Native speaker assessment of fluency and correctness
-- **Instruction Following**: Does the model complete the requested task?
+After testing, review your model's training progress:
+
+```bash
+# View final training loss
+python -c "import json; m=json.load(open('checkpoints/final_metrics.json')); print(f'Final loss: {m[\"train_losses\"][-1]:.2f}')"
+
+# View all checkpoint metrics
+ls -lh checkpoints/checkpoint_step_*_metrics.json
+```
+
+Evaluation criteria:
+- **Training Loss**: Should decrease significantly (e.g., 400+ → <5)
+- **Response Quality**: Fluent, grammatically correct Romanian
+- **Instruction Following**: Model completes the requested task
+- **Factual Accuracy**: Correct answers to knowledge questions
+- **Creativity**: Ability to generate poems, stories, etc.
 
 ## Troubleshooting
 
@@ -239,6 +398,35 @@ from tinker import ServiceClient
 client = ServiceClient()
 ```
 
+### Testing Issues
+
+**Problem**: "Error loading checkpoint: Path is invalid"
+```bash
+# Solution: Test without loading checkpoint (uses current model state)
+python scripts/test_model.py \
+    --session-id YOUR_SESSION_ID \
+    --no-checkpoint \
+    --interactive
+```
+
+**Problem**: Can't find session ID
+```bash
+# Check training logs for session ID
+grep "ServiceClient initialized" train.log
+
+# Or check most recent training
+ls -lt checkpoints/*.json | head -1
+```
+
+**Problem**: "SamplingClient error" or API issues
+```bash
+# Verify Tinker connection
+python -c "from tinker import ServiceClient; print('Connected:', ServiceClient())"
+
+# Check if your session is still active (sessions may expire)
+# You may need to run training again to get a fresh session
+```
+
 ### Data Format Errors
 
 ```bash
@@ -251,16 +439,31 @@ python scripts/prepare_data.py --validate data/processed/train.jsonl
 Reduce batch size in `configs/hyperparams.yaml`:
 ```yaml
 training:
-  batch_size: 2  # Reduced from 4
+  batch_size: 2
 ```
+
+### Checkpoint Download Issues
+
+**Problem**: "Archive creation in progress" for a long time
+- Tinker's archive service can take 5-10+ minutes
+- The download script will automatically retry
+- Alternatively, test directly without downloading (see [Testing Your Model](#testing-your-model))
+
+**Problem**: "404 - Model not found"
+- Verify your session ID is correct
+- Check that training completed successfully
+- Note: Checkpoint paths use the format `checkpoint_step_100`, `checkpoint_final`, etc.
 
 ## Best Practices
 
 1. **Start Small**: Begin with 100-200 examples to validate your pipeline
 2. **Monitor Training**: Check loss curves and sample outputs regularly
 3. **Quality Over Quantity**: 1000 high-quality examples > 10000 poor examples
-4. **Save Checkpoints**: Regularly save to prevent data loss
-5. **Version Control**: Track configs and data preprocessing steps
+4. **Save Your Session ID**: You'll need it for testing - it's in the training logs
+5. **Test Early and Often**: Use interactive mode to test during training
+6. **Save Checkpoints**: Regularly save to prevent data loss (every 100 steps recommended)
+7. **Version Control**: Track configs, data preprocessing steps, and session IDs
+8. **Compare Models**: Always compare fine-tuned vs base model to measure improvement
 
 ## Resources
 
@@ -270,20 +473,33 @@ training:
 - **Romanian Datasets**: https://github.com/AndyTheFactory/romanian-nlp-datasets
 - **LoRA Paper**: https://arxiv.org/abs/2106.09685
 
-## Timeline
-
-- **Days 1-2**: Setup and Tinker access
-- **Days 3-5**: Data collection and preparation
-- **Days 6-7**: Training configuration
-- **Days 8-11**: Initial training and iteration
-- **Days 12-14**: Evaluation and refinement
-
 ## Success Criteria
 
-- Model generates fluent Romanian text
-- Successfully follows instructions in Romanian
-- Outperforms base Llama 3.1 8B on Romanian tasks
-- Achieves target perplexity on validation set
+After training, your model should demonstrate:
+
+✅ **Training Loss Reduction**: Loss decreases from 400+ to <5
+✅ **Fluent Romanian**: Grammatically correct, natural-sounding text
+✅ **Instruction Following**: Completes requested tasks accurately
+✅ **Factual Knowledge**: Correct answers to Romanian knowledge questions
+✅ **Creative Ability**: Can generate poems, stories, explanations
+✅ **Improvement over Base**: Better than untuned Llama 3.1 8B on Romanian tasks
+
+### Example Success Metrics
+
+From a successful training run:
+```json
+{
+  "initial_loss": 428.5,
+  "final_loss": 1.2,
+  "total_steps": 1000,
+  "training_time": "~2 hours"
+}
+```
+
+Test your model with:
+```bash
+python scripts/test_model.py --session-id YOUR_SESSION_ID --interactive
+```
 
 ## Next Steps
 
