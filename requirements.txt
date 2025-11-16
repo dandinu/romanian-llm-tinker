@@ -6,7 +6,7 @@ tinker-cookbook
 pandas>=2.0.0
 numpy>=1.24.0
 datasets>=2.14.0
-huggingface-hub>=0.16.0
+huggingface-hub>=0.34.0,<1.0  # Required by transformers 4.x; v1.x not yet supported
 
 # NLP and Tokenization
 transformers>=4.30.0
