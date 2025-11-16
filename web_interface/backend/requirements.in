@@ -1,0 +1,13 @@
+# Web framework
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+python-multipart==0.0.6
+
+# Data validation and configuration
+pydantic==2.5.3
+pyyaml==6.0.1
+python-dotenv==1.0.0
+
+# Data processing (used by imported scripts)
+langdetect>=1.0.9
+tqdm>=4.65.0
