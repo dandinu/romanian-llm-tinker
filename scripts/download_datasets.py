@@ -19,6 +19,7 @@ from typing import List, Dict, Optional
 import logging
 
 from datasets import load_dataset
+from dotenv import load_dotenv
 from tqdm import tqdm
 
 # Setup logging
@@ -27,6 +28,12 @@ logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+
+# Dataset Download Constants
+class DownloadConstants:
+    """Constants for dataset downloading and filtering."""
+    MIN_TEXT_LENGTH_FILTER = 50  # Minimum text length for dataset filtering
 
 
 class RomanianDatasetDownloader:
@@ -38,8 +45,7 @@ class RomanianDatasetDownloader:
             'config': '20231101.ro',
             'split': 'train',
             'description': 'Romanian Wikipedia - clean factual text',
-            'size_estimate': '~300MB',
-            'trust_remote_code': False
+            'size_estimate': '~300MB'
         },
         'oscar': {
             'name': 'oscar-corpus/OSCAR-2201',
@@ -66,6 +72,14 @@ class RomanianDatasetDownloader:
         """
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
+
+        # Load environment variables
+        load_dotenv()
+
+        # Load HuggingFace token for accessing gated datasets
+        self.hf_token = os.getenv('HF_TOKEN')
+        if self.hf_token:
+            logger.info("HuggingFace token loaded from .env")
 
     def download_dataset(
         self,
@@ -104,7 +118,7 @@ class RomanianDatasetDownloader:
                     config,
                     split=split,
                     streaming=True,
-                    trust_remote_code=True
+                    token=self.hf_token
                 )
             else:
                 # Full download
@@ -112,7 +126,7 @@ class RomanianDatasetDownloader:
                     dataset_name,
                     config,
                     split=split,
-                    trust_remote_code=True
+                    token=self.hf_token
                 )
 
             # Filter for Romanian if needed
@@ -136,7 +150,7 @@ class RomanianDatasetDownloader:
             logger.error(f"Error downloading {source}: {str(e)}")
             logger.error(f"You may need to authenticate with HuggingFace:")
             logger.error(f"  1. Get token from https://huggingface.co/settings/tokens")
-            logger.error(f"  2. Run: huggingface-cli login")
+            logger.error(f"  2. Add HF_TOKEN to .env file, or run: huggingface-cli login")
 
     def _save_dataset(
         self,
@@ -175,7 +189,7 @@ class RomanianDatasetDownloader:
                         # Extract text content based on dataset structure
                         text = self._extract_text(example)
 
-                        if text and len(text.strip()) > 50:  # Minimum length filter
+                        if text and len(text.strip()) > DownloadConstants.MIN_TEXT_LENGTH_FILTER:
                             data = {
                                 'text': text.strip(),
                                 'source': output_file.stem,
@@ -196,7 +210,7 @@ class RomanianDatasetDownloader:
 
         logger.info(f"Saved {count} examples")
 
-    def _extract_text(self, example: Dict) -> Optional[str]:
+    def _extract_text(self, example: Dict[str, any]) -> Optional[str]:
         """Extract text content from dataset example.
 
         Args:
@@ -216,7 +230,7 @@ class RomanianDatasetDownloader:
 
         return None
 
-    def _extract_metadata(self, example: Dict) -> Dict:
+    def _extract_metadata(self, example: Dict[str, any]) -> Dict[str, any]:
         """Extract metadata from example.
 
         Args:

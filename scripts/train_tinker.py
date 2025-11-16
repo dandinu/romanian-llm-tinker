@@ -39,6 +39,13 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+# Training Constants
+class TrainingConstants:
+    """Constants for training and evaluation."""
+    MAX_EVAL_EXAMPLES = 100  # Maximum examples to use for evaluation
+    DEFAULT_MAX_TOKENS = 256  # Default max tokens for generation
+
+
 class RomanianLlamaTrainer:
     """Train Llama 3.1 8B for Romanian using Tinker."""
 
@@ -112,6 +119,38 @@ class RomanianLlamaTrainer:
         self.renderer = renderers.get_renderer(base_type, self.tokenizer)
 
         logger.info("Training setup complete")
+
+    def _compute_loss_from_outputs(
+        self,
+        fwd_result,
+        batch: List[types.Datum]
+    ) -> float:
+        """Extract or compute loss from forward pass results.
+
+        Args:
+            fwd_result: Forward pass result from Tinker
+            batch: Batch of data used for forward pass
+
+        Returns:
+            Computed loss value
+        """
+        # Try to extract loss from metrics first
+        if 'loss:sum' in fwd_result.metrics:
+            return fwd_result.metrics['loss:sum']
+
+        # Fallback: compute mean NLL from logprobs and weights
+        logprobs = [x["logprobs"] for x in fwd_result.loss_fn_outputs]
+        weights = [datum.loss_fn_inputs["weights"] for datum in batch]
+
+        total_loss = 0.0
+        total_weight = 0.0
+        for lp, w in zip(logprobs, weights):
+            lp_tensor = lp.to_torch() if hasattr(lp, 'to_torch') else lp
+            w_tensor = w.to_torch() if hasattr(w, 'to_torch') else w
+            total_loss += -(lp_tensor * w_tensor).sum().item()
+            total_weight += w_tensor.sum().item()
+
+        return total_loss / max(total_weight, 1.0)
 
     def load_training_data(self, data_path: str, max_examples: Optional[int] = None) -> List[types.Datum]:
         """Load and preprocess training data.
@@ -240,26 +279,8 @@ class RomanianLlamaTrainer:
                     "cross_entropy"
                 ).result()
 
-                # Extract loss from metrics (Tinker provides loss:sum in metrics dict)
-                # Or compute from logprobs like Tinker Cookbook does
-                if 'loss:sum' in fwd_result.metrics:
-                    loss = fwd_result.metrics['loss:sum']
-                else:
-                    # Fallback: compute mean NLL from logprobs and weights
-                    logprobs = [x["logprobs"] for x in fwd_result.loss_fn_outputs]
-                    weights = [datum.loss_fn_inputs["weights"] for datum in batch]
-
-                    # Simple mean NLL computation
-                    total_loss = 0.0
-                    total_weight = 0.0
-                    for lp, w in zip(logprobs, weights):
-                        lp_tensor = lp.to_torch() if hasattr(lp, 'to_torch') else lp
-                        w_tensor = w.to_torch() if hasattr(w, 'to_torch') else w
-                        total_loss += -(lp_tensor * w_tensor).sum().item()
-                        total_weight += w_tensor.sum().item()
-
-                    loss = total_loss / max(total_weight, 1.0)
-
+                # Compute loss using shared method
+                loss = self._compute_loss_from_outputs(fwd_result, batch)
                 metrics['train_losses'].append(loss)
 
                 # Optimizer step
@@ -324,7 +345,7 @@ class RomanianLlamaTrainer:
         logger.info(f"Training finished! Checkpoints saved to {checkpoint_dir}")
 
     def _sample_batch(self, data: List[types.Datum], batch_size: int) -> List[types.Datum]:
-        """Sample a random batch from data.
+        """Sample a random batch from data using efficient indexed sampling.
 
         Args:
             data: Full dataset
@@ -334,7 +355,14 @@ class RomanianLlamaTrainer:
             Batch of examples
         """
         import random
-        return random.sample(data, min(batch_size, len(data)))
+
+        # Return all data if batch size is larger or equal
+        if batch_size >= len(data):
+            return data
+
+        # Use indexed sampling for better performance on large datasets
+        indices = random.sample(range(len(data)), batch_size)
+        return [data[i] for i in indices]
 
     def _evaluate(self, val_data: List[types.Datum]) -> float:
         """Evaluate model on validation data.
@@ -345,13 +373,20 @@ class RomanianLlamaTrainer:
         Returns:
             Average validation loss
         """
+        import random
+
         eval_batch_size = self.config['evaluation']['per_device_eval_batch_size']
         total_loss = 0.0
         num_batches = 0
 
-        # Evaluate on a subset of validation data
-        max_eval_examples = min(100, len(val_data))
-        eval_subset = val_data[:max_eval_examples]
+        # Evaluate on a random subset of validation data for better representation
+        max_eval_examples = min(TrainingConstants.MAX_EVAL_EXAMPLES, len(val_data))
+        if max_eval_examples < len(val_data):
+            # Random sample instead of first N for better coverage
+            eval_indices = random.sample(range(len(val_data)), max_eval_examples)
+            eval_subset = [val_data[i] for i in eval_indices]
+        else:
+            eval_subset = val_data
 
         for i in range(0, len(eval_subset), eval_batch_size):
             batch = eval_subset[i:i + eval_batch_size]
@@ -363,24 +398,8 @@ class RomanianLlamaTrainer:
                     "cross_entropy"
                 ).result()
 
-                # Extract loss from metrics (same as training loop)
-                if 'loss:sum' in fwd_result.metrics:
-                    batch_loss = fwd_result.metrics['loss:sum']
-                else:
-                    # Fallback: compute mean NLL from logprobs and weights
-                    logprobs = [x["logprobs"] for x in fwd_result.loss_fn_outputs]
-                    weights = [datum.loss_fn_inputs["weights"] for datum in batch]
-
-                    batch_total = 0.0
-                    batch_weight = 0.0
-                    for lp, w in zip(logprobs, weights):
-                        lp_tensor = lp.to_torch() if hasattr(lp, 'to_torch') else lp
-                        w_tensor = w.to_torch() if hasattr(w, 'to_torch') else w
-                        batch_total += -(lp_tensor * w_tensor).sum().item()
-                        batch_weight += w_tensor.sum().item()
-
-                    batch_loss = batch_total / max(batch_weight, 1.0)
-
+                # Compute loss using shared method
+                batch_loss = self._compute_loss_from_outputs(fwd_result, batch)
                 total_loss += batch_loss
                 num_batches += 1
 
@@ -391,7 +410,7 @@ class RomanianLlamaTrainer:
         avg_loss = total_loss / max(1, num_batches)
         return avg_loss
 
-    def sample_generation(self, prompt: str, max_tokens: int = 256) -> str:
+    def sample_generation(self, prompt: str, max_tokens: int = TrainingConstants.DEFAULT_MAX_TOKENS) -> str:
         """Generate text from the model (for testing).
 
         Args:
