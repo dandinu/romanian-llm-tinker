@@ -29,6 +29,12 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+# Dataset Download Constants
+class DownloadConstants:
+    """Constants for dataset downloading and filtering."""
+    MIN_TEXT_LENGTH_FILTER = 50  # Minimum text length for dataset filtering
+
+
 class RomanianDatasetDownloader:
     """Download and organize Romanian datasets."""
 
@@ -175,7 +181,7 @@ class RomanianDatasetDownloader:
                         # Extract text content based on dataset structure
                         text = self._extract_text(example)
 
-                        if text and len(text.strip()) > 50:  # Minimum length filter
+                        if text and len(text.strip()) > DownloadConstants.MIN_TEXT_LENGTH_FILTER:
                             data = {
                                 'text': text.strip(),
                                 'source': output_file.stem,
@@ -196,7 +202,7 @@ class RomanianDatasetDownloader:
 
         logger.info(f"Saved {count} examples")
 
-    def _extract_text(self, example: Dict) -> Optional[str]:
+    def _extract_text(self, example: Dict[str, any]) -> Optional[str]:
         """Extract text content from dataset example.
 
         Args:
@@ -216,7 +222,7 @@ class RomanianDatasetDownloader:
 
         return None
 
-    def _extract_metadata(self, example: Dict) -> Dict:
+    def _extract_metadata(self, example: Dict[str, any]) -> Dict[str, any]:
         """Extract metadata from example.
 
         Args:

@@ -29,6 +29,16 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+# Data Processing Constants
+class DataConstants:
+    """Constants for data processing and validation."""
+    MIN_PARAGRAPH_LENGTH = 100  # Minimum characters for a valid paragraph
+    MAX_RESPONSE_LENGTH = 1500  # Maximum characters before truncation
+    MIN_TEXT_LENGTH_FILTER = 50  # Minimum text length for dataset filtering
+    DEFAULT_TRAIN_VAL_SPLIT = 0.8  # Default train/validation split ratio
+    DEFAULT_RANDOM_SEED = 42  # Default random seed for reproducibility
+
+
 class RomanianDataProcessor:
     """Process and format Romanian text for instruction following."""
 
@@ -139,7 +149,7 @@ class RomanianDataProcessor:
 
         return True
 
-    def extract_qa_pairs_from_wiki(self, text: str, title: str) -> List[Dict]:
+    def extract_qa_pairs_from_wiki(self, text: str, title: str) -> List[Dict[str, str]]:
         """Extract Q&A pairs from Wikipedia-style text.
 
         Args:
@@ -158,7 +168,8 @@ class RomanianDataProcessor:
             return qa_pairs
 
         # Split into paragraphs
-        paragraphs = [p.strip() for p in text.split('\n') if len(p.strip()) > 100]
+        paragraphs = [p.strip() for p in text.split('\n')
+                      if len(p.strip()) > DataConstants.MIN_PARAGRAPH_LENGTH]
 
         if not paragraphs:
             return qa_pairs
@@ -176,8 +187,8 @@ class RomanianDataProcessor:
             response = '\n\n'.join(paragraphs[:num_paragraphs])
 
             # Ensure response is not too long
-            if len(response) > 1500:
-                response = response[:1500] + "..."
+            if len(response) > DataConstants.MAX_RESPONSE_LENGTH:
+                response = response[:DataConstants.MAX_RESPONSE_LENGTH] + "..."
 
             qa_pairs.append({
                 'instruction': instruction,
@@ -192,7 +203,7 @@ class RomanianDataProcessor:
         instruction: str,
         response: str,
         system_prompt: Optional[str] = None
-    ) -> Dict:
+    ) -> Dict[str, List[Dict[str, str]]]:
         """Create instruction-following example in chat format.
 
         Args:
@@ -230,7 +241,7 @@ class RomanianDataProcessor:
         self,
         input_file: Path,
         max_examples: Optional[int] = None
-    ) -> List[Dict]:
+    ) -> List[Dict[str, any]]:
         """Process a raw JSONL file into instruction examples.
 
         Args:
@@ -280,10 +291,10 @@ class RomanianDataProcessor:
 
     def create_train_val_split(
         self,
-        examples: List[Dict],
+        examples: List[Dict[str, any]],
         split_ratio: float = 0.8,
         seed: int = 42
-    ) -> Tuple[List[Dict], List[Dict]]:
+    ) -> Tuple[List[Dict[str, any]], List[Dict[str, any]]]:
         """Split examples into train and validation sets.
 
         Args:
@@ -308,7 +319,7 @@ class RomanianDataProcessor:
 
         return train, val
 
-    def save_jsonl(self, examples: List[Dict], output_file: Path) -> None:
+    def save_jsonl(self, examples: List[Dict[str, any]], output_file: Path) -> None:
         """Save examples to JSONL file.
 
         Args:
@@ -323,7 +334,7 @@ class RomanianDataProcessor:
 
         logger.info(f"Saved {len(examples)} examples to {output_file}")
 
-    def validate_jsonl(self, file_path: Path) -> Dict:
+    def validate_jsonl(self, file_path: Path) -> Dict[str, any]:
         """Validate JSONL file format.
 
         Args:
