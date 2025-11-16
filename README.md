@@ -104,11 +104,10 @@ This will download and cache Romanian text from:
 
 ```bash
 python scripts/prepare_data.py \
-    --input data/raw \
-    --output data/processed/train.jsonl \
-    --format instruction \
-    --num-examples 1000 \
-    --split 0.8
+      --input data/raw \
+      --output data/processed/train.jsonl \
+      --max-examples 1000 \
+      --split 0.8
 ```
 
 This converts raw text into instruction-following format and creates train/validation splits.
