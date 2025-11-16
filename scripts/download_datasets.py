@@ -111,7 +111,9 @@ class RomanianDatasetDownloader:
 
             logger.info(f"Loading dataset: {dataset_name}")
 
-            if streaming and max_examples:
+            # Use streaming only for large datasets (>10K examples) to avoid
+            # async connection issues with small downloads
+            if streaming and max_examples and max_examples > 10000:
                 # Streaming mode for large datasets
                 dataset = load_dataset(
                     dataset_name,
