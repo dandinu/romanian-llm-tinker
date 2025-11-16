@@ -22,8 +22,6 @@ sys.path.append(str(Path(__file__).parent.parent.parent))
 
 from scripts.config_validator import validate_config
 from scripts.prepare_data import RomanianDataProcessor
-from scripts.test_model import ModelTester
-from scripts.evaluate import RomanianModelEvaluator
 
 app = FastAPI(
     title="Romanian LLM Training API",
