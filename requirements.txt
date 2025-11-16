@@ -20,6 +20,7 @@ langdetect>=1.0.9
 # Data Quality and Validation
 jsonschema>=4.17.0
 tqdm>=4.65.0
+pydantic>=2.0.0  # Configuration validation
 
 # Translation (for data augmentation if needed)
 deep-translator>=1.11.0
@@ -39,3 +40,7 @@ rouge-score>=0.1.2
 
 # Logging and Monitoring
 wandb>=0.15.0  # Optional: for experiment tracking
+
+# Testing and Development
+pytest>=7.4.0  # Unit testing framework
+pytest-cov>=4.1.0  # Test coverage reporting

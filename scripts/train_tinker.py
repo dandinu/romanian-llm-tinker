@@ -31,6 +31,13 @@ except ImportError:
     print("Error: Tinker not installed. Run: pip install tinker tinker-cookbook")
     sys.exit(1)
 
+# Import config validator
+try:
+    from config_validator import validate_config
+except ImportError:
+    logger.warning("Config validator not available. Skipping validation.")
+    validate_config = None
+
 # Setup logging
 logging.basicConfig(
     level=logging.INFO,
@@ -81,18 +88,35 @@ class RomanianLlamaTrainer:
         logger.info("Trainer initialized successfully")
 
     def _load_config(self, config_path: str) -> Dict:
-        """Load configuration from YAML file.
+        """Load and validate configuration from YAML file.
 
         Args:
             config_path: Path to config file
 
         Returns:
             Configuration dictionary
+
+        Raises:
+            ValueError: If configuration is invalid
         """
         with open(config_path, 'r') as f:
             config = yaml.safe_load(f)
 
         logger.info(f"Loaded configuration from {config_path}")
+
+        # Validate configuration if validator is available
+        if validate_config is not None:
+            try:
+                validated = validate_config(config)
+                logger.info("Configuration validation passed")
+                # Convert back to dict for compatibility
+                config = validated.model_dump()
+            except Exception as e:
+                logger.error(f"Configuration validation failed: {str(e)}")
+                raise ValueError(f"Invalid configuration: {str(e)}")
+        else:
+            logger.warning("Skipping configuration validation (validator not installed)")
+
         return config
 
     def setup_training(self) -> None:
