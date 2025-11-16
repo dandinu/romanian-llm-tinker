@@ -19,6 +19,7 @@ from typing import List, Dict, Optional
 import logging
 
 from datasets import load_dataset
+from dotenv import load_dotenv
 from tqdm import tqdm
 
 # Setup logging
@@ -72,6 +73,14 @@ class RomanianDatasetDownloader:
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
+        # Load environment variables
+        load_dotenv()
+
+        # Load HuggingFace token for accessing gated datasets
+        self.hf_token = os.getenv('HF_TOKEN')
+        if self.hf_token:
+            logger.info("HuggingFace token loaded from .env")
+
     def download_dataset(
         self,
         source: str,
@@ -108,14 +117,16 @@ class RomanianDatasetDownloader:
                     dataset_name,
                     config,
                     split=split,
-                    streaming=True
+                    streaming=True,
+                    token=self.hf_token
                 )
             else:
                 # Full download
                 dataset = load_dataset(
                     dataset_name,
                     config,
-                    split=split
+                    split=split,
+                    token=self.hf_token
                 )
 
             # Filter for Romanian if needed
@@ -139,7 +150,7 @@ class RomanianDatasetDownloader:
             logger.error(f"Error downloading {source}: {str(e)}")
             logger.error(f"You may need to authenticate with HuggingFace:")
             logger.error(f"  1. Get token from https://huggingface.co/settings/tokens")
-            logger.error(f"  2. Run: huggingface-cli login")
+            logger.error(f"  2. Add HF_TOKEN to .env file, or run: huggingface-cli login")
 
     def _save_dataset(
         self,
