@@ -10,6 +10,11 @@ This project adapts Meta's Llama 3.1 8B model to better understand and generate 
 
 ```
 romanian-llm-tinker/
+├── web_interface/              # 🆕 Web UI for training management
+│   ├── frontend/              # React + Tailwind CSS interface
+│   ├── backend/               # FastAPI backend
+│   ├── docker-compose.yml     # Docker orchestration
+│   └── README.md             # Web interface documentation
 ├── data/
 │   ├── raw/              # Original datasets (downloaded)
 │   ├── processed/        # JSONL formatted training data
@@ -151,6 +156,40 @@ python scripts/test_model.py \
 ```
 
 See the [Testing Your Model](#testing-your-model) section below for detailed testing options.
+
+## Web Interface (NEW!)
+
+A modern web interface is now available for managing your Romanian LLM fine-tuning workflow through your browser!
+
+### Features
+
+- **Dashboard** - Monitor training jobs, datasets, and system metrics
+- **Training Management** - Configure and start training jobs with an intuitive UI
+- **Dataset Upload** - Easily upload and preview JSONL datasets
+- **Interactive Testing** - Chat interface to test your fine-tuned models
+- **Settings** - View and manage training configurations
+
+### Quick Start with Docker
+
+```bash
+# Navigate to web interface directory
+cd web_interface
+
+# Start the application
+docker-compose up -d
+
+# Access the web interface
+# Frontend: http://localhost:3000
+# Backend API: http://localhost:8000
+```
+
+For detailed documentation, see [web_interface/README.md](web_interface/README.md).
+
+### Tech Stack
+
+- **Frontend**: React + Tailwind CSS + shadcn/ui
+- **Backend**: FastAPI + Python
+- **Deployment**: Docker + Docker Compose
 
 ## Data Format
 

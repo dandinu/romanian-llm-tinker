@@ -1,0 +1,16 @@
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+python-multipart==0.0.6
+pydantic==2.5.3
+pyyaml==6.0.1
+python-dotenv==1.0.0
+
+# Project dependencies
+transformers>=4.30.0
+torch>=2.0.0
+datasets>=2.14.0
+pandas>=2.0.0
+numpy>=1.24.0
+tinker>=0.1.0
+pydantic>=2.0.0
+tqdm>=4.65.0

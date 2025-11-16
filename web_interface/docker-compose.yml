@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: romanian-llm-backend
+    ports:
+      - "8000:8000"
+    volumes:
+      # Mount project root to access scripts and configs
+      - ..:/home/user/romanian-llm-tinker:ro
+      # Mount data and checkpoints with write access
+      - ../data:/app/data
+      - ../checkpoints:/app/checkpoints
+      - ../configs:/app/configs:ro
+    environment:
+      - PYTHONUNBUFFERED=1
+      - PYTHONPATH=/home/user/romanian-llm-tinker
+    env_file:
+      - ../.env
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: romanian-llm-frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    environment:
+      - VITE_API_URL=http://localhost:8000
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
+networks:
+  default:
+    name: romanian-llm-network
+
+volumes:
+  data:
+  checkpoints:
