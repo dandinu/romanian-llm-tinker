@@ -44,8 +44,7 @@ class RomanianDatasetDownloader:
             'config': '20231101.ro',
             'split': 'train',
             'description': 'Romanian Wikipedia - clean factual text',
-            'size_estimate': '~300MB',
-            'trust_remote_code': False
+            'size_estimate': '~300MB'
         },
         'oscar': {
             'name': 'oscar-corpus/OSCAR-2201',
@@ -109,16 +108,14 @@ class RomanianDatasetDownloader:
                     dataset_name,
                     config,
                     split=split,
-                    streaming=True,
-                    trust_remote_code=True
+                    streaming=True
                 )
             else:
                 # Full download
                 dataset = load_dataset(
                     dataset_name,
                     config,
-                    split=split,
-                    trust_remote_code=True
+                    split=split
                 )
 
             # Filter for Romanian if needed
