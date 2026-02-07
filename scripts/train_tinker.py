@@ -342,7 +342,11 @@ class RomanianLlamaTrainer:
                 logger.info(f"Saving checkpoint: {checkpoint_name}")
 
                 try:
-                    self.training_client.save_state(checkpoint_name).result()
+                    # Use a 7-day TTL for intermediate checkpoints so they
+                    # auto-expire and don't accumulate storage costs.
+                    self.training_client.save_state(
+                        checkpoint_name, ttl_seconds=7 * 24 * 3600
+                    ).result()
 
                     # Save metrics
                     metrics_file = checkpoint_path / f"{checkpoint_name}_metrics.json"
