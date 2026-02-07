@@ -40,8 +40,7 @@ except ImportError:
 
 # Setup logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -49,6 +48,7 @@ logger = logging.getLogger(__name__)
 # Training Constants
 class TrainingConstants:
     """Constants for training and evaluation."""
+
     MAX_EVAL_EXAMPLES = 100  # Maximum examples to use for evaluation
     DEFAULT_MAX_TOKENS = 256  # Default max tokens for generation
 
@@ -69,7 +69,7 @@ class RomanianLlamaTrainer:
         self.config = self._load_config(config_path)
 
         # Verify API key
-        self.api_key = os.getenv('TINKER_API_KEY')
+        self.api_key = os.getenv("TINKER_API_KEY")
         if not self.api_key:
             raise ValueError(
                 "TINKER_API_KEY not found. "
@@ -99,7 +99,7 @@ class RomanianLlamaTrainer:
         Raises:
             ValueError: If configuration is invalid
         """
-        with open(config_path, 'r') as f:
+        with open(config_path, "r") as f:
             config = yaml.safe_load(f)
 
         logger.info(f"Loaded configuration from {config_path}")
@@ -115,23 +115,26 @@ class RomanianLlamaTrainer:
                 logger.error(f"Configuration validation failed: {str(e)}")
                 raise ValueError(f"Invalid configuration: {str(e)}")
         else:
-            logger.warning("Skipping configuration validation (validator not installed)")
+            logger.warning(
+                "Skipping configuration validation (validator not installed)"
+            )
 
         return config
 
     def setup_training(self) -> None:
         """Set up Tinker training client with LoRA configuration."""
-        model_name = self.config['model']['name']
-        lora_config = self.config['lora']
+        model_name = self.config["model"]["name"]
+        lora_config = self.config["lora"]
 
         logger.info(f"Setting up training for: {model_name}")
-        logger.info(f"LoRA config: rank={lora_config['rank']}, alpha={lora_config['alpha']}")
+        logger.info(
+            f"LoRA config: rank={lora_config['rank']}, alpha={lora_config['alpha']}"
+        )
 
         # Create LoRA training client
         # Note: Tinker API uses 'rank' parameter (alpha is handled internally)
         self.training_client = self.client.create_lora_training_client(
-            base_model=model_name,
-            rank=lora_config['rank']
+            base_model=model_name, rank=lora_config["rank"]
         )
 
         # Get tokenizer
@@ -139,16 +142,12 @@ class RomanianLlamaTrainer:
         self.tokenizer = self.training_client.get_tokenizer()
 
         # Get renderer for chat formatting
-        base_type = self.config['model']['base_type']
+        base_type = self.config["model"]["base_type"]
         self.renderer = renderers.get_renderer(base_type, self.tokenizer)
 
         logger.info("Training setup complete")
 
-    def _compute_loss_from_outputs(
-        self,
-        fwd_result,
-        batch: List[types.Datum]
-    ) -> float:
+    def _compute_loss_from_outputs(self, fwd_result, batch: List[types.Datum]) -> float:
         """Extract or compute loss from forward pass results.
 
         Args:
@@ -159,8 +158,8 @@ class RomanianLlamaTrainer:
             Computed loss value
         """
         # Try to extract loss from metrics first
-        if 'loss:sum' in fwd_result.metrics:
-            return fwd_result.metrics['loss:sum']
+        if "loss:sum" in fwd_result.metrics:
+            return fwd_result.metrics["loss:sum"]
 
         # Fallback: compute mean NLL from logprobs and weights
         logprobs = [x["logprobs"] for x in fwd_result.loss_fn_outputs]
@@ -169,14 +168,16 @@ class RomanianLlamaTrainer:
         total_loss = 0.0
         total_weight = 0.0
         for lp, w in zip(logprobs, weights):
-            lp_tensor = lp.to_torch() if hasattr(lp, 'to_torch') else lp
-            w_tensor = w.to_torch() if hasattr(w, 'to_torch') else w
+            lp_tensor = lp.to_torch() if hasattr(lp, "to_torch") else lp
+            w_tensor = w.to_torch() if hasattr(w, "to_torch") else w
             total_loss += -(lp_tensor * w_tensor).sum().item()
             total_weight += w_tensor.sum().item()
 
         return total_loss / max(total_weight, 1.0)
 
-    def load_training_data(self, data_path: str, max_examples: Optional[int] = None) -> List[types.Datum]:
+    def load_training_data(
+        self, data_path: str, max_examples: Optional[int] = None
+    ) -> List[types.Datum]:
         """Load and preprocess training data.
 
         Args:
@@ -190,7 +191,7 @@ class RomanianLlamaTrainer:
 
         processed_data = []
 
-        with open(data_path, 'r', encoding='utf-8') as f:
+        with open(data_path, "r", encoding="utf-8") as f:
             lines = f.readlines()
 
             if max_examples:
@@ -201,7 +202,7 @@ class RomanianLlamaTrainer:
                     example = json.loads(line)
 
                     # Extract messages
-                    messages = example['messages']
+                    messages = example["messages"]
 
                     # Build supervised example with Tinker renderer
                     tokens, weights = self.renderer.build_supervised_example(messages)
@@ -217,24 +218,25 @@ class RomanianLlamaTrainer:
 
                     # Create TensorData for both target_tokens and weights
                     from tinker import TensorData
+
                     target_tokens_data = TensorData(
                         data=[int(x) for x in target_tokens.tolist()],
                         dtype="int64",
-                        shape=list(target_tokens.shape)
+                        shape=list(target_tokens.shape),
                     )
                     weights_data = TensorData(
                         data=weights_shifted.tolist(),
                         dtype="float32",
-                        shape=list(weights_shifted.shape)
+                        shape=list(weights_shifted.shape),
                     )
 
                     # Create Datum object with both target_tokens and weights
                     datum = types.Datum(
                         model_input=model_input,
                         loss_fn_inputs={
-                            'target_tokens': target_tokens_data,
-                            'weights': weights_data
-                        }
+                            "target_tokens": target_tokens_data,
+                            "weights": weights_data,
+                        },
                     )
 
                     processed_data.append(datum)
@@ -250,7 +252,7 @@ class RomanianLlamaTrainer:
         self,
         train_data: List[types.Datum],
         val_data: Optional[List[types.Datum]] = None,
-        checkpoint_dir: str = "checkpoints"
+        checkpoint_dir: str = "checkpoints",
     ) -> None:
         """Run training loop.
 
@@ -259,15 +261,15 @@ class RomanianLlamaTrainer:
             val_data: Validation data (optional)
             checkpoint_dir: Directory to save checkpoints
         """
-        training_config = self.config['training']
-        optimizer_config = self.config['optimizer']
+        training_config = self.config["training"]
+        optimizer_config = self.config["optimizer"]
 
-        max_steps = training_config['max_steps']
-        eval_steps = training_config['eval_steps']
-        save_steps = training_config['save_steps']
-        logging_steps = training_config['logging_steps']
-        learning_rate = training_config['learning_rate']
-        batch_size = training_config['batch_size']
+        max_steps = training_config["max_steps"]
+        eval_steps = training_config["eval_steps"]
+        save_steps = training_config["save_steps"]
+        logging_steps = training_config["logging_steps"]
+        learning_rate = training_config["learning_rate"]
+        batch_size = training_config["batch_size"]
 
         logger.info("Starting training...")
         logger.info(f"  Max steps: {max_steps}")
@@ -281,11 +283,7 @@ class RomanianLlamaTrainer:
         checkpoint_path.mkdir(parents=True, exist_ok=True)
 
         # Training metrics
-        metrics = {
-            'train_losses': [],
-            'eval_losses': [],
-            'step': 0
-        }
+        metrics = {"train_losses": [], "eval_losses": [], "step": 0}
 
         # Training loop
         pbar = tqdm(range(max_steps), desc="Training")
@@ -299,31 +297,34 @@ class RomanianLlamaTrainer:
             # Forward + backward pass
             try:
                 fwd_result = self.training_client.forward_backward(
-                    batch,
-                    "cross_entropy"
+                    batch, "cross_entropy"
                 ).result()
 
                 # Compute loss using shared method
                 loss = self._compute_loss_from_outputs(fwd_result, batch)
-                metrics['train_losses'].append(loss)
+                metrics["train_losses"].append(loss)
 
                 # Optimizer step
                 self.training_client.optim_step(
                     types.AdamParams(
                         learning_rate=learning_rate,
-                        beta1=optimizer_config.get('beta1', 0.9),
-                        beta2=optimizer_config.get('beta2', 0.999),
-                        eps=optimizer_config.get('eps', 1e-8)
+                        beta1=optimizer_config.get("beta1", 0.9),
+                        beta2=optimizer_config.get("beta2", 0.999),
+                        eps=optimizer_config.get("eps", 1e-8),
                     )
                 ).result()
 
                 # Update progress bar
                 if step % logging_steps == 0:
-                    avg_loss = sum(metrics['train_losses'][-logging_steps:]) / min(logging_steps, len(metrics['train_losses']))
-                    pbar.set_postfix({
-                        'loss': f'{avg_loss:.4f}',
-                        'step_time': f'{time.time() - step_start:.2f}s'
-                    })
+                    avg_loss = sum(metrics["train_losses"][-logging_steps:]) / min(
+                        logging_steps, len(metrics["train_losses"])
+                    )
+                    pbar.set_postfix(
+                        {
+                            "loss": f"{avg_loss:.4f}",
+                            "step_time": f"{time.time() - step_start:.2f}s",
+                        }
+                    )
 
             except Exception as e:
                 logger.error(f"Error at step {step}: {str(e)}")
@@ -332,7 +333,7 @@ class RomanianLlamaTrainer:
             # Evaluation
             if val_data and step > 0 and step % eval_steps == 0:
                 eval_loss = self._evaluate(val_data)
-                metrics['eval_losses'].append((step, eval_loss))
+                metrics["eval_losses"].append((step, eval_loss))
                 logger.info(f"Step {step}: Eval loss = {eval_loss:.4f}")
 
             # Save checkpoint
@@ -345,13 +346,13 @@ class RomanianLlamaTrainer:
 
                     # Save metrics
                     metrics_file = checkpoint_path / f"{checkpoint_name}_metrics.json"
-                    with open(metrics_file, 'w') as f:
+                    with open(metrics_file, "w") as f:
                         json.dump(metrics, f, indent=2)
 
                 except Exception as e:
                     logger.error(f"Error saving checkpoint: {str(e)}")
 
-            metrics['step'] = step + 1
+            metrics["step"] = step + 1
 
         # Save final checkpoint
         logger.info("Training complete! Saving final checkpoint...")
@@ -360,7 +361,7 @@ class RomanianLlamaTrainer:
 
             # Save final metrics
             final_metrics_file = checkpoint_path / "final_metrics.json"
-            with open(final_metrics_file, 'w') as f:
+            with open(final_metrics_file, "w") as f:
                 json.dump(metrics, f, indent=2)
 
         except Exception as e:
@@ -368,7 +369,9 @@ class RomanianLlamaTrainer:
 
         logger.info(f"Training finished! Checkpoints saved to {checkpoint_dir}")
 
-    def _sample_batch(self, data: List[types.Datum], batch_size: int) -> List[types.Datum]:
+    def _sample_batch(
+        self, data: List[types.Datum], batch_size: int
+    ) -> List[types.Datum]:
         """Sample a random batch from data using efficient indexed sampling.
 
         Args:
@@ -399,7 +402,7 @@ class RomanianLlamaTrainer:
         """
         import random
 
-        eval_batch_size = self.config['evaluation']['per_device_eval_batch_size']
+        eval_batch_size = self.config["evaluation"]["per_device_eval_batch_size"]
         total_loss = 0.0
         num_batches = 0
 
@@ -413,13 +416,12 @@ class RomanianLlamaTrainer:
             eval_subset = val_data
 
         for i in range(0, len(eval_subset), eval_batch_size):
-            batch = eval_subset[i:i + eval_batch_size]
+            batch = eval_subset[i : i + eval_batch_size]
 
             try:
                 # Forward pass only (no backward)
                 fwd_result = self.training_client.forward_backward(
-                    batch,
-                    "cross_entropy"
+                    batch, "cross_entropy"
                 ).result()
 
                 # Compute loss using shared method
@@ -434,7 +436,9 @@ class RomanianLlamaTrainer:
         avg_loss = total_loss / max(1, num_batches)
         return avg_loss
 
-    def sample_generation(self, prompt: str, max_tokens: int = TrainingConstants.DEFAULT_MAX_TOKENS) -> str:
+    def sample_generation(
+        self, prompt: str, max_tokens: int = TrainingConstants.DEFAULT_MAX_TOKENS
+    ) -> str:
         """Generate text from the model (for testing).
 
         Args:
@@ -451,7 +455,7 @@ class RomanianLlamaTrainer:
             # Sample from model
             result = self.training_client.sample(
                 types.Datum(model_input=tokens),
-                types.SampleParams(max_tokens=max_tokens)
+                types.SampleParams(max_tokens=max_tokens),
             ).result()
 
             # Decode
@@ -470,37 +474,37 @@ def parse_args():
     )
 
     parser.add_argument(
-        '--config',
+        "--config",
         type=str,
-        default='configs/hyperparams.yaml',
-        help='Path to hyperparameters config'
+        default="configs/hyperparams.yaml",
+        help="Path to hyperparameters config",
     )
 
     parser.add_argument(
-        '--train-data',
+        "--train-data",
         type=str,
-        default='data/splits/train.jsonl',
-        help='Path to training data JSONL'
+        default="data/splits/train.jsonl",
+        help="Path to training data JSONL",
     )
 
     parser.add_argument(
-        '--val-data',
+        "--val-data",
         type=str,
-        default='data/splits/val.jsonl',
-        help='Path to validation data JSONL'
+        default="data/splits/val.jsonl",
+        help="Path to validation data JSONL",
     )
 
     parser.add_argument(
-        '--checkpoint-dir',
+        "--checkpoint-dir",
         type=str,
-        default='checkpoints',
-        help='Directory to save checkpoints'
+        default="checkpoints",
+        help="Directory to save checkpoints",
     )
 
     parser.add_argument(
-        '--quick-test',
-        action='store_true',
-        help='Quick test run with limited data/steps'
+        "--quick-test",
+        action="store_true",
+        help="Quick test run with limited data/steps",
     )
 
     return parser.parse_args()
@@ -517,8 +521,12 @@ def main():
         logger.error(f"Failed to initialize trainer: {str(e)}")
         logger.error("\nTroubleshooting:")
         logger.error("  1. Check your Tinker API key in .env")
-        logger.error("  2. Verify Tinker installation: pip install tinker tinker-cookbook")
-        logger.error("  3. Test connection: python -c 'from tinker import ServiceClient; ServiceClient()'")
+        logger.error(
+            "  2. Verify Tinker installation: pip install tinker tinker-cookbook"
+        )
+        logger.error(
+            "  3. Test connection: python -c 'from tinker import ServiceClient; ServiceClient()'"
+        )
         return
 
     # Setup training
@@ -536,15 +544,15 @@ def main():
     # Load validation data if available
     val_data = None
     if Path(args.val_data).exists():
-        val_data = trainer.load_training_data(args.val_data, max_examples // 5 if max_examples else None)
+        val_data = trainer.load_training_data(
+            args.val_data, max_examples // 5 if max_examples else None
+        )
     else:
         logger.warning(f"Validation data not found: {args.val_data}")
 
     # Train
     trainer.train(
-        train_data=train_data,
-        val_data=val_data,
-        checkpoint_dir=args.checkpoint_dir
+        train_data=train_data, val_data=val_data, checkpoint_dir=args.checkpoint_dir
     )
 
     logger.info("\nTraining pipeline complete!")
@@ -554,5 +562,5 @@ def main():
     logger.info("  3. Download checkpoint for local testing")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
